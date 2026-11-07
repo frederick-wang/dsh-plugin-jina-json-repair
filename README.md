@@ -80,7 +80,7 @@ npm install
 npm test
 ```
 
-Thirteen tests cover passthrough, repair, refusal, ordering, aborts, and custom target lists. The suite uses Node's built-in runner and needs no provider access.
+Twenty-one tests cover passthrough, repair, refusal, ordering, aborts, schema lookup, and custom target lists. The suite uses Node's built-in runner and needs no provider access.
 
 To test against a real provider, point `DEEPSEEK_BASE_URL` at a local server that emits a broken `input_json_delta` and compare with and without the plugin mounted. A minimal fixture is a few dozen lines of `node:http`.
 
