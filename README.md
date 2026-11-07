@@ -19,7 +19,7 @@ Across 62 tools in one profile, only `read_url` and `search_web` declare their r
 ## Install
 
 ```bash
-dsh plugin --profile dsh-tui add github:YOUR_ACCOUNT/dsh-plugin-jina-json-repair
+dsh plugin --profile dsh-tui add github:frederick-wang/dsh-plugin-jina-json-repair
 ```
 
 `dsh plugin add` installs into the profile's `node_modules` and, because this package declares `dsh.bundle.patch`, appends it to `dsh.profile.bundles` automatically. The bundled `cordis.patch.yml` mounts the plugin.
