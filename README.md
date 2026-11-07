@@ -40,9 +40,13 @@ When the finish is `MALFORMED_RESPONSE` with the tool-input message, it runs `js
 
 - required keys are present
 - declared property types match
-- `format: "uri"` values parse with `new URL()`
+- `format: "uri"` values use http or https
+- arrays are non-empty
+- no key appears that the schema does not declare
 
-If everything validates, the repaired blocks are released with a synthetic `finish: tool-calls` and the turn continues. Otherwise the original error goes out untouched and dsh's normal retry policy takes over.
+That last rule is what keeps `jsonrepair` honest. It treats a bare colon as a key separator and `//` as a line comment, so `{"url": https://a.com, https://b.com}` repairs to `{"url":"https://a.com","https":null}`, dropping the second URL. A `site:github.com` filter inside a query becomes a separate `site` property. Both pass a naive "did it parse" check and both would execute a tool call with mangled arguments, so they are rejected.
+
+If everything validates, the repaired blocks are released with a synthetic `finish: tool-calls` and the turn continues. Otherwise the original error goes out untouched and dsh's normal retry policy takes over. When the request carries no schema for a tool, nothing is repaired: there is nothing to validate against.
 
 The error is only swallowed when every tool-call block in the message ends up valid. A malformed `bash` block next to a repairable `read_url` block still aborts, because executing a tool with arguments nobody validated is worse than retrying.
 
@@ -65,7 +69,7 @@ An empty or missing list falls back to the defaults. Any tool named there is rep
 
 Repairing a turn drops its `replayState`, so that turn's thinking blocks go back to the provider without a signature. DeepSeek accepts unsigned thinking, so subsequent turns work; the earlier reasoning simply does not get replayed word for word.
 
-The plugin repairs syntax, not meaning. If the model omits a required field entirely, there is nothing to repair and the error passes through. `jsonrepair` can also turn `<<<junk>>>` into the string `"<<<junk>>>"`, which the URI check catches for `read_url` but not for a free-text query. A repaired `search_web` query may be nonsense; the search just returns nothing useful.
+The plugin repairs syntax, not meaning. If the model omits a required field entirely, there is nothing to repair and the error passes through. A repaired `search_web` query can still be nonsense text that happens to be valid JSON; the search then returns nothing useful.
 
 Holding block-ends delays the tool-call display in the UI until the stream closes. That is a few hundred milliseconds at most, since tool calls sit next to the finish chunk.
 

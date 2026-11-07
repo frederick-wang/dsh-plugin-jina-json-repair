@@ -187,3 +187,50 @@ test("an empty tool list falls back to the defaults", async () => {
 	const out = await collect([toolEnd(0, "jina__search_web", '{"query": hi}'), badFinish], options, { tools: [] });
 	assert.equal(out.at(-1).reason.kind, "tool-calls");
 });
+
+test("refuses a repair that invents a property from an unquoted URL", async () => {
+	// jsonrepair turns this into {"url":"https://a.com","https":null}: the second
+	// URL is eaten as a // comment and the scheme becomes a key.
+	const chunks = [toolEnd(0, "jina__read_url", '{"url": https://a.com, https://b.com}'), badFinish];
+	assert.deepEqual(await collect(chunks), chunks);
+});
+
+test("refuses a repair that turns a site: filter into a property", async () => {
+	// jsonrepair reads the bare colon as a key separator:
+	// {"query":"deepseek","site":"github.com"}
+	const chunks = [toolEnd(0, "jina__search_web", '{"query": "deepseek" site:github.com}'), badFinish];
+	assert.deepEqual(await collect(chunks), chunks);
+});
+
+test("accepts a repair that keeps the whole query in one string", async () => {
+	const out = await collect([toolEnd(0, "jina__search_web", '{"query": deepseek site:github.com}'), badFinish]);
+	assert.equal(out.at(-1).reason.kind, "tool-calls");
+	assert.deepEqual(JSON.parse(out[0].block.arguments), { query: "deepseek site:github.com" });
+});
+
+test("refuses non-http schemes that WHATWG URL happily parses", async () => {
+	for (const url of ["mailto:test@example.com", "javascript:alert(1)", "foo:bar"]) {
+		const chunks = [toolEnd(0, "jina__read_url", `{"url": ${url}}`), badFinish];
+		assert.deepEqual(await collect(chunks), chunks, url);
+	}
+});
+
+test("refuses an empty array for the url parameter", async () => {
+	const chunks = [toolEnd(0, "jina__read_url", '{"url": ['), badFinish];
+	assert.deepEqual(await collect(chunks), chunks);
+});
+
+test("refuses to repair when the request carries no schema for the tool", async () => {
+	const chunks = [toolEnd(0, "jina__read_url", '{"url": https://example.com}'), badFinish];
+	assert.deepEqual(await collect(chunks, { tools: [] }), chunks);
+});
+
+test("refuses a non-target block that parses to null", async () => {
+	// The adapter rejects non-object tool input; JSON.parse alone would not.
+	const chunks = [
+		toolEnd(0, "jina__read_url", '{"url": https://example.com}'),
+		toolEnd(1, "bash", "null"),
+		badFinish,
+	];
+	assert.deepEqual(await collect(chunks), chunks);
+});

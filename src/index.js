@@ -47,8 +47,8 @@ function toolMatches(fullName, patterns) {
 
 function uriParses(value) {
 	try {
-		new URL(value);
-		return true;
+		const url = new URL(value);
+		return url.protocol === "http:" || url.protocol === "https:";
 	} catch {
 		return false;
 	}
@@ -78,9 +78,12 @@ function valueMatches(value, schema) {
 		case "string":
 			if (typeof value !== "string") return false;
 			return schema.format === "uri" ? uriParses(value) : true;
+		case "object":
+			return acceptable(value, schema);
 		case "array": {
 			if (!Array.isArray(value)) return false;
-			if (schema.minItems !== undefined && value.length < schema.minItems) return false;
+			const min = schema.minItems ?? 1;
+			if (value.length < min) return false;
 			if (schema.maxItems !== undefined && value.length > schema.maxItems) return false;
 			return value.every((item) => valueMatches(item, schema.items));
 		}
@@ -89,16 +92,36 @@ function valueMatches(value, schema) {
 	}
 }
 
-/** Required keys present, and every declared property type-correct. */
+/**
+ * Required keys present, declared properties type-correct, and no key the
+ * schema does not declare.
+ *
+ * The unknown-key rule matters because jsonrepair reads a bare `:` as a key
+ * separator and `//` as a line comment. `{"url": https://a.com, https://b.com}`
+ * repairs to `{"url":"https://a.com","https":null}`, and a `site:github.com`
+ * filter inside a query becomes a separate `site` property. Accepting either
+ * would execute a tool call with silently mangled arguments.
+ *
+ * A missing schema rejects everything: there is nothing to validate against,
+ * so the turn should fail rather than run a tool unvalidated.
+ */
 function acceptable(value, schema) {
+	if (schema === undefined || schema === null || typeof schema !== "object") return false;
 	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-	if (Array.isArray(schema?.required)) {
+	if (Array.isArray(schema.required)) {
 		for (const key of schema.required) if (!(key in value)) return false;
 	}
-	const properties = schema?.properties ?? {};
+	const properties = schema.properties;
+	if (properties === undefined || typeof properties !== "object") {
+		return schema.additionalProperties === true;
+	}
 	for (const key of Object.keys(value)) {
 		const declared = properties[key];
-		if (declared !== undefined && !valueMatches(value[key], declared)) return false;
+		if (declared === undefined) {
+			if (schema.additionalProperties !== true) return false;
+			continue;
+		}
+		if (!valueMatches(value[key], declared)) return false;
 	}
 	return true;
 }
@@ -174,10 +197,15 @@ export async function* repairStream(inner, options, config = {}, log = () => {})
 						}
 						args = fixed;
 					} else {
-						// Not ours to repair: let it through only if it was already valid.
+						// Not ours to repair. It may ride along only if the adapter
+						// would have accepted it too: valid JSON *and* a plain object.
+						let parsed;
 						try {
-							JSON.parse(args);
+							parsed = JSON.parse(args);
 						} catch {
+							parsed = undefined;
+						}
+						if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
 							ok = false;
 							log(`no repair offered for ${toolName}`);
 							break;
@@ -199,10 +227,13 @@ export async function* repairStream(inner, options, config = {}, log = () => {})
 			yield chunk;
 			return;
 		}
-	} finally {
-		// Aborted or failed mid-stream: hand back whatever was held so the
-		// interrupted message still shows its tool calls.
+	} catch (error) {
+		// The producer failed rather than a tool call being malformed. Release
+		// whatever was held so the attempt records a complete stream, then let
+		// the failure through. A consumer-side abort needs no release: dsh drops
+		// tool-call blocks from an interrupted message anyway.
 		yield* flush();
+		throw error;
 	}
 }
 
