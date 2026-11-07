@@ -1,0 +1,9 @@
+# This bundle's patch layer: mount the plugin itself.
+#
+# A bundle patch is applied before the profile's own cordis.patch.yml, so the
+# row below is a default that a profile can still override or disable by id.
+# `name` resolves the package by its own name from the profile's node_modules,
+# the same way dsh-web-app and dsh-tui mount themselves.
+- insert:
+    - id: jina-json-repair
+      name: 'dsh-plugin-jina-json-repair'

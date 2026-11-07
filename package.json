@@ -1,0 +1,42 @@
+{
+	"name": "dsh-plugin-jina-json-repair",
+	"version": "0.1.0",
+	"description": "Repair malformed jina MCP tool-call JSON at dsh's llm/stream layer so one bad tool_use argument no longer kills the turn.",
+	"type": "module",
+	"main": "src/index.js",
+	"exports": {
+		".": "./src/index.js",
+		"./cordis.patch.yml": "./cordis.patch.yml",
+		"./package.json": "./package.json"
+	},
+	"files": [
+		"src",
+		"cordis.patch.yml",
+		"README.md",
+		"LICENSE"
+	],
+	"dsh": {
+		"bundle": {
+			"patch": "./cordis.patch.yml"
+		}
+	},
+	"keywords": [
+		"dsh",
+		"dsh-plugin",
+		"deepseek-harness",
+		"cordis",
+		"json-repair",
+		"mcp",
+		"jina"
+	],
+	"license": "MIT",
+	"engines": {
+		"node": ">=20"
+	},
+	"dependencies": {
+		"jsonrepair": "^3.15.0"
+	},
+	"scripts": {
+		"test": "node --test"
+	}
+}
