@@ -1,5 +1,7 @@
 # dsh-plugin-jina-json-repair
 
+[English](README.md) | [中文](README.zh.md)
+
 Repairs malformed tool-call arguments from the jina MCP tools `read_url` and `search_web` before dsh persists them, so one bad tool call no longer kills the turn.
 
 ## The problem
@@ -76,8 +78,8 @@ Holding block-ends delays the tool-call display in the UI until the stream close
 ## Development
 
 ```bash
-npm install
-npm test
+pnpm install
+pnpm test
 ```
 
 Twenty-one tests cover passthrough, repair, refusal, ordering, aborts, schema lookup, and custom target lists. The suite uses Node's built-in runner and needs no provider access.
