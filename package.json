@@ -1,6 +1,6 @@
 {
 	"name": "dsh-plugin-jina-json-repair",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "Repair malformed jina MCP tool-call JSON at dsh's llm/stream layer so one bad tool_use argument no longer kills the turn.",
 	"type": "module",
 	"main": "src/index.js",

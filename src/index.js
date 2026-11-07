@@ -40,8 +40,12 @@ const DEFAULT_TOOLS = ["read_url", "search_web"];
 
 const INVALID_TOOL_JSON = "tool input is invalid JSON";
 
+function toolSuffix(fullName) {
+	return fullName.includes("__") ? fullName.slice(fullName.lastIndexOf("__") + 2) : fullName;
+}
+
 function toolMatches(fullName, patterns) {
-	const short = fullName.includes("__") ? fullName.slice(fullName.lastIndexOf("__") + 2) : fullName;
+	const short = toolSuffix(fullName);
 	return patterns.some((pattern) => pattern === fullName || pattern === short);
 }
 
@@ -156,8 +160,17 @@ export function repairArguments(raw, schema) {
  */
 export async function* repairStream(inner, options, config = {}, log = () => {}) {
 	const patterns = Array.isArray(config.tools) && config.tools.length > 0 ? config.tools : DEFAULT_TOOLS;
+	// Exact names first, then the suffix after `server__`. The MCP server name
+	// is a deployment detail; a renamed server should still find its schema.
 	const schemas = new Map();
-	for (const tool of options?.tools ?? []) if (tool?.name) schemas.set(tool.name, tool.parameters);
+	const bySuffix = new Map();
+	for (const tool of options?.tools ?? []) {
+		if (!tool?.name) continue;
+		schemas.set(tool.name, tool.parameters);
+		const suffix = toolSuffix(tool.name);
+		if (!bySuffix.has(suffix)) bySuffix.set(suffix, tool.parameters);
+	}
+	const schemaFor = (toolName) => schemas.get(toolName) ?? bySuffix.get(toolSuffix(toolName));
 
 	const held = new Map();
 	const flush = function* () {
@@ -189,7 +202,7 @@ export async function* repairStream(inner, options, config = {}, log = () => {})
 					const toolName = entry.block.name ?? "";
 					let args = entry.block.arguments ?? "";
 					if (toolMatches(toolName, patterns)) {
-						const fixed = repairArguments(args, schemas.get(toolName));
+						const fixed = repairArguments(args, schemaFor(toolName));
 						if (fixed === undefined) {
 							ok = false;
 							log(`cannot repair ${toolName}`);

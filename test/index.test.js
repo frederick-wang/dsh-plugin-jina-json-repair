@@ -234,3 +234,17 @@ test("refuses a non-target block that parses to null", async () => {
 	];
 	assert.deepEqual(await collect(chunks), chunks);
 });
+
+test("finds the schema when the server prefix differs", async () => {
+	// The MCP server name is a deployment detail. A tool advertised as
+	// `jinaproxy__read_url` must still validate a `jina__read_url` call, or a
+	// renamed server silently turns every repair into a refusal.
+	const renamed = {
+		name: "jinaproxy__read_url",
+		parameters: readUrl.parameters,
+	};
+	const chunks = [toolEnd(0, "jina__read_url", '{"url": https://example.com}'), badFinish];
+	const out = await collect(chunks, { tools: [renamed] });
+	assert.equal(out.at(-1).reason.kind, "tool-calls");
+	assert.deepEqual(JSON.parse(out[0].block.arguments), { url: "https://example.com" });
+});
